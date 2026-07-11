@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">بلاغي</string>
+    <string name="login">تسجيل الدخول</string>
+    <string name="register">إنشاء حساب</string>
+    <string name="email">البريد الإلكتروني</string>
+    <string name="password">كلمة المرور</string>
+</resources>
