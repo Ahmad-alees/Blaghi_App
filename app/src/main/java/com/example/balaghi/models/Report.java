@@ -14,9 +14,20 @@ public class Report implements Serializable {
     private String date;
     private boolean isAnonymous;
     private int userId;
-    public Report() {
 
+    public String getExtractedText() {
+        return extractedText;
     }
+
+    public void setExtractedText(String extractedText) {
+        this.extractedText = extractedText;
+    }
+
+    private String extractedText;
+
+    public Report() {
+    }
+
     public Report(int id, String title, String description,
                   String category, String status,
                   String location, String image,

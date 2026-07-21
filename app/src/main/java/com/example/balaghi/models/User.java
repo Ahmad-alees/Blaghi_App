@@ -2,7 +2,7 @@ package com.example.balaghi.models;
 
 import java.io.Serializable;
 
-public class User implements Serializable {
+public final class User implements Serializable {
 
     private int id;
     private String fullName;

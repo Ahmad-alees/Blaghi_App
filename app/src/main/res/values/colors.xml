@@ -1,34 +1,31 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <!-- Primary -->
     <color name="primary">#0F766E</color>
     <color name="primary_dark">#0B5A54</color>
     <color name="on_primary">#FFFFFF</color>
 
-    <!-- Secondary -->
     <color name="secondary">#14B8A6</color>
+    <color name="secondary_Light">#CD14B8A6</color>
     <color name="on_secondary">#FFFFFF</color>
 
-    <!-- Accent -->
     <color name="accent">#F59E0B</color>
 
-    <!-- Background & Surface -->
     <color name="background">#FAFAFA</color>
     <color name="surface">#FFFFFF</color>
+    <color name="card_light">#EAF4F2</color>
 
-    <!-- Text -->
+
     <color name="text_dark">#212121</color>
     <color name="text_gray">#757575</color>
 
-    <!-- Status Colors -->
     <color name="status_green">#22C55E</color>
     <color name="status_orange">#F97316</color>
     <color name="status_red">#EF4444</color>
     <color name="status_blue">#3B82F6</color>
 
-    <!-- Basic -->
     <color name="white">#FFFFFF</color>
     <color name="black">#000000</color>
+    <color name="primary_">#1A9E8F</color>
 
 </resources>
