@@ -1,21 +1,30 @@
 package com.example.balaghi.activities;
 
 import android.Manifest;
+import android.app.AlertDialog;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.location.Address;
+import android.location.Geocoder;
+import android.location.Location;
+import android.location.LocationListener;
+import android.location.LocationManager;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
-import android.os.Environment;
+import android.os.Looper;
 import android.provider.MediaStore;
+import android.text.TextUtils;
 import android.widget.ArrayAdapter;
 import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
-import androidx.appcompat.app.AlertDialog;
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
@@ -28,6 +37,10 @@ import com.example.balaghi.database.DatabaseHelper;
 import com.example.balaghi.databinding.ActivityEditReportBinding;
 import com.example.balaghi.models.Report;
 import com.example.balaghi.utils.Constants;
+import com.google.mlkit.vision.common.InputImage;
+import com.google.mlkit.vision.text.TextRecognition;
+import com.google.mlkit.vision.text.TextRecognizer;
+import com.google.mlkit.vision.text.latin.TextRecognizerOptions;
 
 import java.io.File;
 import java.io.IOException;
@@ -40,46 +53,62 @@ import java.util.Locale;
 public class EditReportActivity extends AppCompatActivity {
 
     private ActivityEditReportBinding binding;
-    private DatabaseHelper databaseHelper;
+
+    private static final int MAX_IMAGES = 6;
+    private static final int CAMERA_PERMISSION_CODE = 200;
+    private static final int LOCATION_PERMISSION_CODE = 201;
+    private static final int CAMERA_PERMISSION_CODE_OCR = 202;
+
+    private static final String KEY_TITLE          = "er_title";
+    private static final String KEY_DESC           = "er_desc";
+    private static final String KEY_LOCATION       = "er_loc";
+    private static final String KEY_CAT_POS        = "er_cat";
+    private static final String KEY_ANON           = "er_anon";
+    private static final String KEY_SELECTED_IMAGES = "er_selected_images";
+    private static final String KEY_CAMERA_PHOTO_URI = "er_camera_photo_uri";
+    private static final String KEY_OCR_IMAGE_URI     = "er_ocr_image_uri";
+    private static final String KEY_OCR_CAMERA_PHOTO_URI = "er_ocr_camera_photo_uri";
+    private static final String KEY_OCR_TEXT       = "er_ocr_text";
+
+    private DatabaseHelper dbHelper;
     private Report report;
 
+    private final List<Uri> selectedImageUris = new ArrayList<>();
     private ImageGridAdapter imageAdapter;
-    private final List<Uri> selectedImages = new ArrayList<>();
-    private Uri cameraImageUri;
 
-    private static final int MAX_IMAGES = 5;
+    private Uri cameraPhotoUri;
+    private Uri ocrImageUri;
+    private Uri ocrCameraPhotoUri;
 
-    private static final String KEY_TITLE    = "er_title";
-    private static final String KEY_DESC     = "er_desc";
-    private static final String KEY_LOCATION = "er_loc";
-    private static final String KEY_CAT_POS  = "er_cat";
-    private static final String KEY_ANON     = "er_anon";
-    private static final String KEY_IMAGES   = "er_images";
+    private TextRecognizer textRecognizer;
 
     private final ActivityResultLauncher<Intent> galleryLauncher =
             registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
-                if (result.getResultCode() == RESULT_OK && result.getData() != null) {
-                    Uri uri = result.getData().getData();
-                    if (uri != null) {
-                        selectedImages.add(uri);
-                        imageAdapter.notifyDataSetChanged();
-                    }
+                if (result.getResultCode() == RESULT_OK && result.getData() != null
+                        && result.getData().getData() != null) {
+                    addImage(result.getData().getData());
                 }
             });
 
-    private final ActivityResultLauncher<Intent> cameraLauncher =
+    private final ActivityResultLauncher<Uri> cameraLauncher =
+            registerForActivityResult(new ActivityResultContracts.TakePicture(), success -> {
+                if (success && cameraPhotoUri != null) {
+                    addImage(cameraPhotoUri);
+                }
+            });
+
+    private final ActivityResultLauncher<Intent> ocrGalleryLauncher =
             registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
-                if (result.getResultCode() == RESULT_OK && cameraImageUri != null) {
-                    selectedImages.add(cameraImageUri);
-                    imageAdapter.notifyDataSetChanged();
+                if (result.getResultCode() == RESULT_OK && result.getData() != null
+                        && result.getData().getData() != null) {
+                    setOcrImage(result.getData().getData());
                 }
             });
 
-    private final ActivityResultLauncher<String[]> permissionLauncher =
-            registerForActivityResult(new ActivityResultContracts.RequestMultiplePermissions(), granted -> {
-                boolean allGranted = !granted.containsValue(false);
-                if (allGranted) {
-                    Toast.makeText(this, "تم منح الصلاحية — اضغط + مرة أخرى", Toast.LENGTH_SHORT).show();
+    private final ActivityResultLauncher<Uri> ocrCameraLauncher =
+            registerForActivityResult(new ActivityResultContracts.TakePicture(), success -> {
+                if (success && ocrCameraPhotoUri != null) {
+                    setOcrImage(ocrCameraPhotoUri);
                 }
             });
 
@@ -87,18 +116,20 @@ public class EditReportActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         EdgeToEdge.enable(this);
+
         binding = ActivityEditReportBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
 
-        databaseHelper = new DatabaseHelper(this);
+        dbHelper = new DatabaseHelper(this);
+        textRecognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS);
 
         report = (Report) getIntent().getSerializableExtra(Constants.EXTRA_REPORT);
-        if (report == null) { finish(); return; }
+        if (report == null) {
+            finish();
+            return;
+        }
 
-        binding.tvTitle.setText("تعديل البلاغ");
-        binding.btnSaveReport.setText("حفظ التعديلات");
-
-        ViewCompat.setOnApplyWindowInsetsListener(binding.getRoot(), (v, insets) -> {
+        ViewCompat.setOnApplyWindowInsetsListener(binding.main, (v, insets) -> {
             Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
             return insets;
@@ -108,23 +139,13 @@ public class EditReportActivity extends AppCompatActivity {
         setupImageGrid();
 
         if (savedInstanceState != null) {
-            binding.etTitle.setText(savedInstanceState.getString(KEY_TITLE, ""));
-            binding.etDescription.setText(savedInstanceState.getString(KEY_DESC, ""));
-            binding.etLocation.setText(savedInstanceState.getString(KEY_LOCATION, ""));
-            binding.spinnerCategory.setSelection(savedInstanceState.getInt(KEY_CAT_POS, 0));
-            binding.cbAnonymous.setChecked(savedInstanceState.getBoolean(KEY_ANON, false));
-
-            ArrayList<String> savedImages = savedInstanceState.getStringArrayList(KEY_IMAGES);
-            if (savedImages != null) {
-                selectedImages.clear();
-                for (String uriStr : savedImages) {
-                    selectedImages.add(Uri.parse(uriStr));
-                }
-                imageAdapter.notifyDataSetChanged();
-            }
+            restoreFromState(savedInstanceState);
         } else {
             prefillFields();
         }
+
+        binding.btnPickOcrImage.setOnClickListener(v -> showOcrImageSourceDialog());
+        binding.btnExtractText.setOnClickListener(v -> extractTextFromImage());
 
         binding.tilLocation.setEndIconOnClickListener(v -> {
             String location = binding.etLocation.getText() != null
@@ -146,9 +167,8 @@ public class EditReportActivity extends AppCompatActivity {
         binding.btnSaveReport.setOnClickListener(v -> updateReport());
     }
 
-
     @Override
-    protected void onSaveInstanceState(Bundle outState) {
+    protected void onSaveInstanceState(@NonNull Bundle outState) {
         super.onSaveInstanceState(outState);
         outState.putString(KEY_TITLE,
                 binding.etTitle.getText() != null ? binding.etTitle.getText().toString() : "");
@@ -158,41 +178,61 @@ public class EditReportActivity extends AppCompatActivity {
                 binding.etLocation.getText() != null ? binding.etLocation.getText().toString() : "");
         outState.putInt(KEY_CAT_POS, binding.spinnerCategory.getSelectedItemPosition());
         outState.putBoolean(KEY_ANON, binding.cbAnonymous.isChecked());
+        outState.putString(KEY_OCR_TEXT,
+                binding.etOcrResult.getText() != null ? binding.etOcrResult.getText().toString() : "");
 
-        ArrayList<String> imageUris = new ArrayList<>();
-        for (Uri uri : selectedImages) {
-            imageUris.add(uri.toString());
+        outState.putParcelableArrayList(KEY_SELECTED_IMAGES, new ArrayList<>(selectedImageUris));
+        if (cameraPhotoUri != null) outState.putParcelable(KEY_CAMERA_PHOTO_URI, cameraPhotoUri);
+        if (ocrImageUri != null) outState.putParcelable(KEY_OCR_IMAGE_URI, ocrImageUri);
+        if (ocrCameraPhotoUri != null) outState.putParcelable(KEY_OCR_CAMERA_PHOTO_URI, ocrCameraPhotoUri);
+    }
+
+    private void restoreFromState(Bundle state) {
+        binding.etTitle.setText(state.getString(KEY_TITLE, ""));
+        binding.etDescription.setText(state.getString(KEY_DESC, ""));
+        binding.etLocation.setText(state.getString(KEY_LOCATION, ""));
+        binding.spinnerCategory.setSelection(state.getInt(KEY_CAT_POS, 0));
+        binding.cbAnonymous.setChecked(state.getBoolean(KEY_ANON, false));
+        binding.etOcrResult.setText(state.getString(KEY_OCR_TEXT, ""));
+
+        List<Uri> restoredImages = state.getParcelableArrayList(KEY_SELECTED_IMAGES);
+        if (restoredImages != null) {
+            selectedImageUris.clear();
+            selectedImageUris.addAll(restoredImages);
+            imageAdapter.notifyDataSetChanged();
         }
-        outState.putStringArrayList(KEY_IMAGES, imageUris);
+        cameraPhotoUri = state.getParcelable(KEY_CAMERA_PHOTO_URI);
+        ocrCameraPhotoUri = state.getParcelable(KEY_OCR_CAMERA_PHOTO_URI);
+
+        Uri restoredOcrUri = state.getParcelable(KEY_OCR_IMAGE_URI);
+        if (restoredOcrUri != null) {
+            setOcrImage(restoredOcrUri);
+        }
     }
 
     private void setupSpinner() {
-        String[] rawCategories = getResources().getStringArray(R.array.categories_array);
-        String[] categories = new String[rawCategories.length + 1];
-        categories[0] = "اختر التصنيف";
-        System.arraycopy(rawCategories, 0, categories, 1, rawCategories.length);
-
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(
-                this, android.R.layout.simple_spinner_item, categories);
+        ArrayAdapter<CharSequence> adapter = ArrayAdapter.createFromResource(
+                this, R.array.categories_array, android.R.layout.simple_spinner_item);
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         binding.spinnerCategory.setAdapter(adapter);
     }
 
     private void setupImageGrid() {
-        imageAdapter = new ImageGridAdapter(selectedImages, MAX_IMAGES, new ImageGridAdapter.Listener() {
+        binding.rvImages.setLayoutManager(new GridLayoutManager(this, 2));
+        imageAdapter = new ImageGridAdapter(selectedImageUris, MAX_IMAGES, new ImageGridAdapter.Listener() {
             @Override
             public void onAddClick() {
                 showImageSourceDialog();
             }
+
             @Override
             public void onRemoveClick(int position) {
-                if (position >= 0 && position < selectedImages.size()) {
-                    selectedImages.remove(position);
+                if (position >= 0 && position < selectedImageUris.size()) {
+                    selectedImageUris.remove(position);
                     imageAdapter.notifyDataSetChanged();
                 }
             }
         });
-        binding.rvImages.setLayoutManager(new GridLayoutManager(this, 3));
         binding.rvImages.setAdapter(imageAdapter);
     }
 
@@ -208,88 +248,297 @@ public class EditReportActivity extends AppCompatActivity {
             if (catPos >= 0) binding.spinnerCategory.setSelection(catPos);
         }
 
-        String existingImage = report.getImage();
-        if (existingImage != null && !existingImage.trim().isEmpty()) {
-            selectedImages.add(Uri.parse(existingImage.trim()));
+        String imagesRaw = report.getImage();
+        if (!TextUtils.isEmpty(imagesRaw)) {
+            selectedImageUris.clear();
+            String[] parts = imagesRaw.split(",");
+            for (String part : parts) {
+                if (!part.trim().isEmpty()) {
+                    selectedImageUris.add(Uri.parse(part.trim()));
+                }
+            }
             imageAdapter.notifyDataSetChanged();
+        }
+
+        if (!TextUtils.isEmpty(report.getExtractedText())) {
+            binding.etOcrResult.setText(report.getExtractedText());
+        }
+
+        // تعبئة صورة الـ OCR المحفوظة (إن وُجدت) حتى تظهر مع النص المستخرج
+        if (!TextUtils.isEmpty(report.getOcrImage())) {
+            try {
+                setOcrImage(Uri.parse(report.getOcrImage().trim()));
+            } catch (Exception ignored) { }
         }
     }
 
+    private void addImage(Uri uri) {
+        selectedImageUris.add(uri);
+        imageAdapter.notifyDataSetChanged();
+    }
 
-    private void showImageSourceDialog() {
-        if (selectedImages.size() >= MAX_IMAGES) {
-            Toast.makeText(this, "الحد الأقصى " + MAX_IMAGES + " صور", Toast.LENGTH_SHORT).show();
-            return;
-        }
+    private void setOcrImage(Uri uri) {
+        ocrImageUri = uri;
+        binding.imgOcrPreview.setVisibility(android.view.View.VISIBLE);
+        binding.imgOcrPreview.setImageURI(ocrImageUri);
+        binding.btnExtractText.setEnabled(true);
+    }
+
+    private void showOcrImageSourceDialog() {
+        String[] options = {"التقاط صورة بالكاميرا", "اختيار من المعرض"};
         new AlertDialog.Builder(this)
-                .setTitle("إضافة صورة")
-                .setItems(new String[]{"التقاط صورة بالكاميرا", "اختيار من المعرض"},
-                        (dialog, which) -> {
-                            if (which == 0) openCamera();
-                            else openGallery();
-                        })
+                .setTitle("اختر مصدر الصورة")
+                .setItems(options, (dialog, which) -> {
+                    if (which == 0) checkCameraPermissionAndOpenForOcr();
+                    else openOcrGallery();
+                })
                 .show();
     }
 
-    private void openCamera() {
-        if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
-            permissionLauncher.launch(new String[]{Manifest.permission.CAMERA});
-            return;
-        }
-        try {
-            File photoFile = createImageFile();
-            cameraImageUri = FileProvider.getUriForFile(
-                    this, getPackageName() + ".fileprovider", photoFile);
-            Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
-            intent.putExtra(MediaStore.EXTRA_OUTPUT, cameraImageUri);
-            cameraLauncher.launch(intent);
-        } catch (IOException e) {
-            Toast.makeText(this, "تعذّر فتح الكاميرا", Toast.LENGTH_SHORT).show();
+    private void openOcrGallery() {
+        Intent intent = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
+        ocrGalleryLauncher.launch(intent);
+    }
+
+    private void checkCameraPermissionAndOpenForOcr() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
+                != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this,
+                    new String[]{Manifest.permission.CAMERA}, CAMERA_PERMISSION_CODE_OCR);
+        } else {
+            openCameraForOcr();
         }
     }
 
-    private void openGallery() {
-        String permission = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
-                ? Manifest.permission.READ_MEDIA_IMAGES
-                : Manifest.permission.READ_EXTERNAL_STORAGE;
-        if (checkSelfPermission(permission) != PackageManager.PERMISSION_GRANTED) {
-            permissionLauncher.launch(new String[]{permission});
+    private void openCameraForOcr() {
+        File photoFile;
+        try {
+            photoFile = createImageFile();
+        } catch (IOException e) {
+            Toast.makeText(this, "حدث خطأ أثناء تجهيز الصورة", Toast.LENGTH_SHORT).show();
             return;
         }
+        ocrCameraPhotoUri = FileProvider.getUriForFile(
+                this, getApplicationContext().getPackageName() + ".fileprovider", photoFile);
+        ocrCameraLauncher.launch(ocrCameraPhotoUri);
+    }
+
+    private void extractTextFromImage() {
+        if (ocrImageUri == null) {
+            Toast.makeText(this, "الرجاء اختيار صورة أولاً", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        try {
+            InputImage image = InputImage.fromFilePath(this, ocrImageUri);
+
+            binding.btnExtractText.setEnabled(false);
+            binding.btnExtractText.setText("جاري الاستخراج...");
+
+            textRecognizer.process(image)
+                    .addOnSuccessListener(visionText -> {
+                        binding.btnExtractText.setEnabled(true);
+                        binding.btnExtractText.setText("استخراج النص");
+
+                        String extracted = visionText.getText();
+                        if (extracted.trim().isEmpty()) {
+                            Toast.makeText(this,
+                                    "لم يتم العثور على نص (المكتبة تدعم الإنجليزي فقط ولا تتعرف على العربي)",
+                                    Toast.LENGTH_LONG).show();
+                        } else {
+                            binding.etOcrResult.setText(extracted);
+                        }
+                    })
+                    .addOnFailureListener(e -> {
+                        binding.btnExtractText.setEnabled(true);
+                        binding.btnExtractText.setText("استخراج النص");
+                        Toast.makeText(this, "فشل استخراج النص: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                    });
+
+        } catch (IOException e) {
+            Toast.makeText(this, "تعذر قراءة الصورة المختارة", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void showImageSourceDialog() {
+        if (selectedImageUris.size() >= MAX_IMAGES) {
+            Toast.makeText(this, "الحد الأقصى " + MAX_IMAGES + " صور", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        String[] options = {"التقاط صورة بالكاميرا", "اختيار من المعرض"};
+        new AlertDialog.Builder(this)
+                .setTitle("اختر مصدر الصورة")
+                .setItems(options, (dialog, which) -> {
+                    if (which == 0) checkCameraPermissionAndOpen();
+                    else openGallery();
+                })
+                .show();
+    }
+
+    private void openGallery() {
         Intent intent = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
         galleryLauncher.launch(intent);
     }
 
-    private File createImageFile() throws IOException {
-        String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
-        File storageDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES);
-        return File.createTempFile("RPT_" + timeStamp, ".jpg", storageDir);
+    private void checkCameraPermissionAndOpen() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
+                != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this,
+                    new String[]{Manifest.permission.CAMERA}, CAMERA_PERMISSION_CODE);
+        } else {
+            openCamera();
+        }
     }
 
-    private void updateReport() {
-        String title       = binding.etTitle.getText().toString().trim();
-        String description = binding.etDescription.getText().toString().trim();
-        String location     = binding.etLocation.getText().toString().trim();
-        String category     = binding.spinnerCategory.getSelectedItem().toString();
+    private void openCamera() {
+        File photoFile;
+        try {
+            photoFile = createImageFile();
+        } catch (IOException e) {
+            Toast.makeText(this, "حدث خطأ أثناء تجهيز الصورة", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        cameraPhotoUri = FileProvider.getUriForFile(
+                this, getApplicationContext().getPackageName() + ".fileprovider", photoFile);
+        cameraLauncher.launch(cameraPhotoUri);
+    }
 
-        if (title.isEmpty())       { binding.etTitle.setError("أدخل عنوان البلاغ"); return; }
-        if (description.isEmpty()) { binding.etDescription.setError("أدخل وصف البلاغ"); return; }
-        if (location.isEmpty())    { binding.etLocation.setError("أدخل موقع البلاغ"); return; }
-        if (category.equals("اختر التصنيف")) {
-            Toast.makeText(this, "الرجاء اختيار تصنيف", Toast.LENGTH_SHORT).show();
+    private File createImageFile() throws IOException {
+        String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
+        File storageDir = getExternalFilesDir("Pictures");
+        return File.createTempFile("REPORT_" + timeStamp, ".jpg", storageDir);
+    }
+
+    private void getCurrentLocationAndFill() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
+                != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this,
+                    new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, LOCATION_PERMISSION_CODE);
             return;
         }
 
-        String imageUri = selectedImages.isEmpty() ? "" : selectedImages.get(0).toString();
+        LocationManager locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+        Location lastKnown = null;
+        try {
+            if (locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
+                lastKnown = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
+            }
+            if (lastKnown == null && locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
+                lastKnown = locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER);
+            }
+        } catch (SecurityException e) {
+            Toast.makeText(this, "لا يمكن الوصول للموقع", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        if (lastKnown != null) {
+            fillLocationFromCoordinates(lastKnown.getLatitude(), lastKnown.getLongitude());
+        } else {
+            requestFreshLocation(locationManager);
+        }
+    }
+
+    private void requestFreshLocation(LocationManager locationManager) {
+        if (!locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)
+                && !locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
+            Toast.makeText(this, "الرجاء تفعيل خدمة الموقع (GPS)", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        String selectedProvider = locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)
+                ? LocationManager.GPS_PROVIDER : LocationManager.NETWORK_PROVIDER;
+
+        Toast.makeText(this, "جاري تحديد الموقع...", Toast.LENGTH_SHORT).show();
+
+        LocationListener singleLocationListener = new LocationListener() {
+            @Override
+            public void onLocationChanged(Location loc) {
+                fillLocationFromCoordinates(loc.getLatitude(), loc.getLongitude());
+            }
+
+            @Override
+            public void onProviderDisabled(String disabledProvider) {
+            }
+
+            @Override
+            public void onProviderEnabled(String enabledProvider) {
+            }
+
+            @Override
+            public void onStatusChanged(String changedProvider, int status, Bundle extras) {
+            }
+        };
+
+        try {
+            locationManager.requestSingleUpdate(selectedProvider, singleLocationListener, Looper.getMainLooper());
+        } catch (SecurityException e) {
+            Toast.makeText(this, "لا يمكن الوصول للموقع", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void fillLocationFromCoordinates(double lat, double lng) {
+        try {
+            Geocoder geocoder = new Geocoder(this, new Locale("ar"));
+            List<Address> addresses = geocoder.getFromLocation(lat, lng, 1);
+            if (addresses != null && !addresses.isEmpty() && addresses.get(0).getAddressLine(0) != null) {
+                binding.etLocation.setText(addresses.get(0).getAddressLine(0));
+            } else {
+                binding.etLocation.setText(lat + ", " + lng);
+            }
+        } catch (IOException e) {
+            binding.etLocation.setText(lat + ", " + lng);
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (grantResults.length == 0 || grantResults[0] != PackageManager.PERMISSION_GRANTED) {
+            if (requestCode == CAMERA_PERMISSION_CODE || requestCode == CAMERA_PERMISSION_CODE_OCR) {
+                Toast.makeText(this, "يجب السماح باستخدام الكاميرا", Toast.LENGTH_SHORT).show();
+            } else if (requestCode == LOCATION_PERMISSION_CODE) {
+                Toast.makeText(this, "يجب السماح بالوصول للموقع", Toast.LENGTH_SHORT).show();
+            }
+            return;
+        }
+        if (requestCode == CAMERA_PERMISSION_CODE) openCamera();
+        else if (requestCode == CAMERA_PERMISSION_CODE_OCR) openCameraForOcr();
+        else if (requestCode == LOCATION_PERMISSION_CODE) getCurrentLocationAndFill();
+    }
+
+    private void updateReport() {
+        String title = binding.etTitle.getText() == null ? "" : binding.etTitle.getText().toString().trim();
+        String description = binding.etDescription.getText() == null ? "" : binding.etDescription.getText().toString().trim();
+        String location = binding.etLocation.getText() == null ? "" : binding.etLocation.getText().toString().trim();
+        String category = binding.spinnerCategory.getSelectedItem() == null ? "" : binding.spinnerCategory.getSelectedItem().toString();
+        boolean isAnonymous = binding.cbAnonymous.isChecked();
+
+        if (title.isEmpty()) { binding.etTitle.setError("الرجاء إدخال عنوان البلاغ"); binding.etTitle.requestFocus(); return; }
+        if (description.isEmpty()) { binding.etDescription.setError("الرجاء إدخال وصف المشكلة"); binding.etDescription.requestFocus(); return; }
+        if (location.isEmpty()) { binding.etLocation.setError("الرجاء إدخال الموقع"); binding.etLocation.requestFocus(); return; }
+        if (selectedImageUris.isEmpty()) {
+            Toast.makeText(this, "الرجاء إرفاق صورة واحدة على الأقل", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        List<String> uriStrings = new ArrayList<>();
+        for (Uri u : selectedImageUris) uriStrings.add(u.toString());
+        String imagesJoined = TextUtils.join(",", uriStrings);
+
+        String extractedText = binding.etOcrResult.getText() == null ? "" : binding.etOcrResult.getText().toString().trim();
 
         report.setTitle(title);
         report.setDescription(description);
         report.setCategory(category);
         report.setLocation(location);
-        report.setImage(imageUri);
-        report.setAnonymous(binding.cbAnonymous.isChecked());
+        report.setImage(imagesJoined);
+        report.setExtractedText(extractedText);
+        if (ocrImageUri != null) {
+            report.setOcrImage(ocrImageUri.toString());
+        }
+        report.setAnonymous(isAnonymous);
 
-        if (databaseHelper.updateReport(report)) {
+        if (dbHelper.updateReport(report)) {
             Toast.makeText(this, "تم تحديث البلاغ بنجاح", Toast.LENGTH_SHORT).show();
             finish();
         } else {
@@ -300,6 +549,9 @@ public class EditReportActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        if (textRecognizer != null) {
+            textRecognizer.close();
+        }
         binding = null;
     }
 }

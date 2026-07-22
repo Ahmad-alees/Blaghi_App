@@ -9,7 +9,7 @@ import android.database.sqlite.SQLiteOpenHelper;
 import com.example.balaghi.models.Report;
 import com.example.balaghi.models.User;
 import com.example.balaghi.utils.Constants;
-import com.example.balaghi.models.Report;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -41,6 +41,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                     Constants.REPORT_LOCATION + " TEXT NOT NULL, " +
                     Constants.REPORT_IMAGE + " TEXT, " +
                     Constants.REPORT_EXTRACTED_TEXT + " TEXT, " +
+                    Constants.REPORT_OCR_IMAGE + " TEXT, " +
                     Constants.REPORT_DATE + " TEXT NOT NULL, " +
                     Constants.REPORT_IS_ANONYMOUS + " INTEGER NOT NULL, " +
                     Constants.REPORT_USER_ID + " INTEGER, " +
@@ -60,7 +61,6 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         db.execSQL("DROP TABLE IF EXISTS " + Constants.TABLE_USERS);
         onCreate(db);
     }
-
 
     public boolean registerUser(User user) {
         if (isEmailExists(user.getEmail())) return false;
@@ -102,6 +102,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         db.close();
         return user;
     }
+
     public long insertReport(Report report) {
         SQLiteDatabase db = this.getWritableDatabase();
 
@@ -113,6 +114,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         values.put(Constants.REPORT_LOCATION, report.getLocation());
         values.put(Constants.REPORT_IMAGE, report.getImage());
         values.put(Constants.REPORT_EXTRACTED_TEXT, report.getExtractedText());
+        values.put(Constants.REPORT_OCR_IMAGE, report.getOcrImage());
         values.put(Constants.REPORT_DATE, report.getDate());
         values.put(Constants.REPORT_IS_ANONYMOUS, report.isAnonymous() ? 1 : 0);
         values.put(Constants.REPORT_USER_ID, report.getUserId());
@@ -121,6 +123,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         db.close();
         return result;
     }
+
     public User getUserById(int userId) {
         SQLiteDatabase db = this.getReadableDatabase();
         Cursor cursor = db.query(
@@ -165,7 +168,6 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         return user;
     }
 
-
     public long addReport(Report report) {
         SQLiteDatabase db = this.getWritableDatabase();
         ContentValues values = new ContentValues();
@@ -176,6 +178,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         values.put(Constants.REPORT_LOCATION, report.getLocation());
         values.put(Constants.REPORT_IMAGE, report.getImage());
         values.put(Constants.REPORT_EXTRACTED_TEXT, report.getExtractedText());
+        values.put(Constants.REPORT_OCR_IMAGE, report.getOcrImage());
         values.put(Constants.REPORT_DATE, report.getDate());
         values.put(Constants.REPORT_IS_ANONYMOUS, report.isAnonymous() ? 1 : 0);
         values.put(Constants.REPORT_USER_ID, report.getUserId());
@@ -200,6 +203,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         db.close();
         return reports;
     }
+
     public List<Report> getLatestReports(int userId, int limit) {
         List<Report> reports = new ArrayList<>();
         SQLiteDatabase db = this.getReadableDatabase();
@@ -242,6 +246,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         values.put(Constants.REPORT_LOCATION, report.getLocation());
         values.put(Constants.REPORT_IMAGE, report.getImage());
         values.put(Constants.REPORT_EXTRACTED_TEXT, report.getExtractedText());
+        values.put(Constants.REPORT_OCR_IMAGE, report.getOcrImage());
         values.put(Constants.REPORT_DATE, report.getDate());
         values.put(Constants.REPORT_IS_ANONYMOUS, report.isAnonymous() ? 1 : 0);
         int rows = db.update(Constants.TABLE_REPORTS, values,
@@ -295,6 +300,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         report.setLocation(cursor.getString(cursor.getColumnIndexOrThrow(Constants.REPORT_LOCATION)));
         report.setImage(cursor.getString(cursor.getColumnIndexOrThrow(Constants.REPORT_IMAGE)));
         report.setExtractedText(cursor.getString(cursor.getColumnIndexOrThrow(Constants.REPORT_EXTRACTED_TEXT)));
+        report.setOcrImage(cursor.getString(cursor.getColumnIndexOrThrow(Constants.REPORT_OCR_IMAGE)));
         report.setDate(cursor.getString(cursor.getColumnIndexOrThrow(Constants.REPORT_DATE)));
         report.setAnonymous(cursor.getInt(cursor.getColumnIndexOrThrow(Constants.REPORT_IS_ANONYMOUS)) == 1);
         report.setUserId(cursor.getInt(cursor.getColumnIndexOrThrow(Constants.REPORT_USER_ID)));

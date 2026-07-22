@@ -7,18 +7,21 @@
     android:layout_height="match_parent"
     android:fillViewport="true"
     android:background="@color/background"
-    tools:context=".activities.AddReportActivity">
+    tools:context=".activities.EditReportActivity">
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:padding="24dp">
+        android:paddingStart="24dp"
+        android:paddingEnd="24dp"
+        android:paddingTop="24dp"
+        android:paddingBottom="180dp">
 
         <TextView
             android:id="@+id/tvTitle"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="إرسال بلاغ جديد"
+            android:text="تعديل البلاغ"
             android:textStyle="bold"
             android:textSize="20sp"
             android:textColor="@color/text_dark"
@@ -94,7 +97,7 @@
                 android:id="@+id/etLocation"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:hint="اكتب اسم المكان أو اضغط الأيقونة لتحديده تلقائيًا"
+                android:hint="اكتب اسم المكان أو اضغط الأيقونة لتحديده"
                 android:inputType="text" />
         </com.google.android.material.textfield.TextInputLayout>
 
@@ -118,6 +121,73 @@
             app:layout_constraintEnd_toEndOf="parent"
             tools:listitem="@layout/activity_item_image_square" />
 
+        <TextView
+            android:id="@+id/tvOcrLabel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="استخراج نص من صورة (اختياري)"
+            android:textColor="@color/text_dark"
+            app:layout_constraintTop_toBottomOf="@id/rvImages" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnPickOcrImage"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_marginTop="8dp"
+            android:text="اختيار صورة للمسح"
+            android:textAllCaps="false"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            app:layout_constraintTop_toBottomOf="@id/tvOcrLabel"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent" />
+
+        <ImageView
+            android:id="@+id/imgOcrPreview"
+            android:layout_width="0dp"
+            android:layout_height="180dp"
+            android:layout_marginTop="10dp"
+            android:background="#1A0F766E"
+            android:scaleType="centerCrop"
+            android:visibility="gone"
+            android:contentDescription="الصورة المختارة للمسح"
+            app:layout_constraintTop_toBottomOf="@id/btnPickOcrImage"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            tools:visibility="visible" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnExtractText"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_marginTop="8dp"
+            android:text="استخراج النص"
+            android:textAllCaps="false"
+            android:enabled="false"
+            android:backgroundTint="@color/primary"
+            app:layout_constraintTop_toBottomOf="@id/imgOcrPreview"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent" />
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/tilOcrResult"
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:hint="النص المستخرج"
+            app:layout_constraintTop_toBottomOf="@id/btnExtractText">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/etOcrResult"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:minLines="3"
+                android:gravity="top"
+                android:inputType="textMultiLine" />
+
+        </com.google.android.material.textfield.TextInputLayout>
+
         <CheckBox
             android:id="@+id/cbAnonymous"
             android:layout_width="match_parent"
@@ -125,7 +195,7 @@
             android:layout_marginTop="16dp"
             android:text="إرسال البلاغ بشكل مجهول الهوية"
             android:textAlignment="viewEnd"
-            app:layout_constraintTop_toBottomOf="@id/rvImages" />
+            app:layout_constraintTop_toBottomOf="@id/tilOcrResult" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnSaveReport"
@@ -133,7 +203,7 @@
             android:layout_height="52dp"
             android:layout_marginTop="24dp"
             android:layout_marginBottom="24dp"
-            android:text="إرسال البلاغ"
+            android:text="حفظ التعديلات"
             android:textAllCaps="false"
             app:cornerRadius="12dp"
             app:layout_constraintTop_toBottomOf="@id/cbAnonymous"

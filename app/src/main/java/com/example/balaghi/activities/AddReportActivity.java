@@ -187,7 +187,6 @@ public class AddReportActivity extends AppCompatActivity {
         }
     }
 
-
     private void setupImageGrid() {
         binding.rvImages.setLayoutManager(new GridLayoutManager(this, 2));
         imageAdapter = new ImageGridAdapter(selectedImageUris, MAX_IMAGES, new ImageGridAdapter.Listener() {
@@ -255,7 +254,6 @@ public class AddReportActivity extends AppCompatActivity {
                 this, getApplicationContext().getPackageName() + ".fileprovider", photoFile);
         ocrCameraLauncher.launch(ocrCameraPhotoUri);
     }
-
 
     private void extractTextFromImage() {
         if (ocrImageUri == null) {
@@ -338,7 +336,6 @@ public class AddReportActivity extends AppCompatActivity {
         File storageDir = getExternalFilesDir("Pictures");
         return File.createTempFile("REPORT_" + timeStamp, ".jpg", storageDir);
     }
-
 
     private void getCurrentLocationAndFill() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
@@ -437,7 +434,6 @@ public class AddReportActivity extends AppCompatActivity {
         else if (requestCode == LOCATION_PERMISSION_CODE) getCurrentLocationAndFill();
     }
 
-
     private void saveReport() {
         String title = binding.etTitle.getText() == null ? "" : binding.etTitle.getText().toString().trim();
         String description = binding.etDescription.getText() == null ? "" : binding.etDescription.getText().toString().trim();
@@ -469,6 +465,8 @@ public class AddReportActivity extends AppCompatActivity {
 
         String currentDate = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(new Date());
 
+        String extractedText = binding.etOcrResult.getText() == null ? "" : binding.etOcrResult.getText().toString().trim();
+
         Report report = new Report();
         report.setTitle(title);
         report.setDescription(description);
@@ -476,6 +474,10 @@ public class AddReportActivity extends AppCompatActivity {
         report.setStatus("قيد المعالجة");
         report.setLocation(location);
         report.setImage(imagesJoined);
+        report.setExtractedText(extractedText);
+        if (ocrImageUri != null) {
+            report.setOcrImage(ocrImageUri.toString());
+        }
         report.setDate(currentDate);
         report.setAnonymous(isAnonymous);
         report.setUserId(userId);

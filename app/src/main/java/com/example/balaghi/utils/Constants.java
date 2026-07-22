@@ -5,7 +5,7 @@ public class Constants {
     private Constants() {}
 
     public static final String DATABASE_NAME    = "balaghi.db";
-    public static final int    DATABASE_VERSION = 2;
+    public static final int    DATABASE_VERSION = 3;
 
     public static final String TABLE_USERS   = "users";
     public static final String TABLE_REPORTS = "reports";
@@ -39,5 +39,7 @@ public class Constants {
 
     public static final String EXTRA_REPORT  = "extra_report";
     public static final String EXTRA_USER_ID = "extra_user_id";
+
     public static final String REPORT_EXTRACTED_TEXT = "extracted_text";
+    public static final String REPORT_OCR_IMAGE= "ocr_image";
 }
