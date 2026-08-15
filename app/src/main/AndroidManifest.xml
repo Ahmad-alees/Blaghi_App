@@ -70,12 +70,7 @@
         <activity
             android:name=".activities.EditProfileActivity"
             android:exported="false" />
-        <activity
-            android:name=".activities.item_image_placeholder"
-            android:exported="false" />
-        <activity
-            android:name=".activities.item_image_square"
-            android:exported="false" />
+
     </application>
 
 </manifest>

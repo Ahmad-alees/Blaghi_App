@@ -38,7 +38,6 @@ public class Constants {
     public static final String KEY_REMEMBER_ME    = "remember_me";
 
     public static final String EXTRA_REPORT  = "extra_report";
-    public static final String EXTRA_USER_ID = "extra_user_id";
 
     public static final String REPORT_EXTRACTED_TEXT = "extracted_text";
     public static final String REPORT_OCR_IMAGE= "ocr_image";

@@ -74,7 +74,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         values.put(Constants.USER_BIRTH_DATE, user.getBirthDate());
         values.put(Constants.USER_PROFILE_IMAGE, user.getProfileImage());
         long result = db.insert(Constants.TABLE_USERS, null, values);
-        db.close();
+
         return result != -1;
     }
 
@@ -86,7 +86,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 new String[]{email}, null, null, null);
         boolean exists = cursor.getCount() > 0;
         cursor.close();
-        db.close();
+
         return exists;
     }
 
@@ -99,7 +99,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         User user = null;
         if (cursor.moveToFirst()) user = cursorToUser(cursor);
         cursor.close();
-        db.close();
+
         return user;
     }
 
@@ -120,7 +120,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         values.put(Constants.REPORT_USER_ID, report.getUserId());
 
         long result = db.insert(Constants.TABLE_REPORTS, null, values);
-        db.close();
+
         return result;
     }
 
@@ -133,7 +133,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         User user = null;
         if (cursor.moveToFirst()) user = cursorToUser(cursor);
         cursor.close();
-        db.close();
+
         return user;
     }
 
@@ -151,7 +151,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         }
         int rows = db.update(Constants.TABLE_USERS, values,
                 Constants.USER_ID + " = ?", new String[]{String.valueOf(user.getId())});
-        db.close();
+
         return rows > 0;
     }
 
@@ -183,7 +183,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         values.put(Constants.REPORT_IS_ANONYMOUS, report.isAnonymous() ? 1 : 0);
         values.put(Constants.REPORT_USER_ID, report.getUserId());
         long id = db.insert(Constants.TABLE_REPORTS, null, values);
-        db.close();
+
         return id;
     }
 
@@ -200,7 +200,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
             do { reports.add(cursorToReport(cursor)); } while (cursor.moveToNext());
         }
         cursor.close();
-        db.close();
+
         return reports;
     }
 
@@ -218,7 +218,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
             do { reports.add(cursorToReport(cursor)); } while (cursor.moveToNext());
         }
         cursor.close();
-        db.close();
+
         return reports;
     }
 
@@ -232,7 +232,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         Report report = null;
         if (cursor.moveToFirst()) report = cursorToReport(cursor);
         cursor.close();
-        db.close();
+
         return report;
     }
 
@@ -251,7 +251,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         values.put(Constants.REPORT_IS_ANONYMOUS, report.isAnonymous() ? 1 : 0);
         int rows = db.update(Constants.TABLE_REPORTS, values,
                 Constants.REPORT_ID + " = ?", new String[]{String.valueOf(report.getId())});
-        db.close();
+
         return rows > 0;
     }
 
@@ -259,7 +259,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         SQLiteDatabase db = this.getWritableDatabase();
         int rows = db.delete(Constants.TABLE_REPORTS,
                 Constants.REPORT_ID + " = ?", new String[]{String.valueOf(reportId)});
-        db.close();
+
         return rows > 0;
     }
 
@@ -272,7 +272,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         int count = 0;
         if (cursor.moveToFirst()) count = cursor.getInt(0);
         cursor.close();
-        db.close();
+
         return count;
     }
 
@@ -286,7 +286,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         int count = 0;
         if (cursor.moveToFirst()) count = cursor.getInt(0);
         cursor.close();
-        db.close();
+
         return count;
     }
 
